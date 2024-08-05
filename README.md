@@ -24,6 +24,6 @@ pip install -r requirements.txt
 ### Clone the Repository
 
 ```sh
-git clone https://github.com/your-username/PDF2JPG.git
+git clone https://github.com/ececabukcu/PDF2JPG.git
 cd PDF2JPG
 
