@@ -1,20 +1,20 @@
-import sys  # Python sistem spesifik parametreleri ve fonksiyonları için
-import fitz  # PyMuPDF #pdf dosyalarını işlemek için
-from PIL import Image  # Pillow kütüphanesi ile görüntü işleme
-import io  # Girdi ve çıktı işlemleri için
-import os  # İşletim sistemi ile ilgili işlemler (dosya ve dizin yönetimi gibi) için
-import logging  # Loglama işlemleri için
-from concurrent.futures import ThreadPoolExecutor  # Paralel işlemeyi sağlamak için
-import configparser  # INI dosyasını okumak ve yazmak için
+import sys  # For system-specific parameters and functions
+import fitz  # PyMuPDF # to work with PDF files
+from PIL import Image  # For image processing with the Pillow library
+import io  # For input and output operations
+import os  # For interacting with the operating system (file and directory management)
+import logging  # For logging operations
+from concurrent.futures import ThreadPoolExecutor  # To enable parallel processing
+import configparser  # For reading and writing INI files
 
 
-# Log yapılandırması
+# Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[
     logging.FileHandler("pdf_to_jpg.log"),
     logging.StreamHandler()
 ])
 
-def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI ve kalite parametreleri eklendi
+def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality parameters added
     logging.info(f"Starting conversion for: {pdf_path}")
     try:
         pdf_document = fitz.open(pdf_path)
@@ -31,11 +31,11 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI ve kalite para
     for page_number in range(len(pdf_document)):
         try:
             page = pdf_document.load_page(page_number)
-            pix = page.get_pixmap(dpi=dpi)  # DPI parametresi kullanılarak pixmap oluşturma
+            pix = page.get_pixmap(dpi=dpi)  # Creating pixmap using the DPI parameter
             img_data = io.BytesIO(pix.tobytes(output='jpeg'))
             image = Image.open(img_data)
             jpeg_path = os.path.join(output_dir, f'{os.path.splitext(os.path.basename(pdf_path))[0]}_page_{page_number + 1}.jpg')
-            image.save(jpeg_path, 'JPEG', quality=quality)  # Kalite parametresi eklendi
+            image.save(jpeg_path, 'JPEG', quality=quality)  # Quality parameter added
             logging.info(f'Page {page_number + 1} of {pdf_path} saved as {jpeg_path}')
         except Exception as e:
             logging.error(f"Failed to convert page {page_number + 1} of {pdf_path}, Error: {e}")
@@ -44,7 +44,7 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI ve kalite para
     
     pdf_document.close()
     
-    # dönüşen pdf dosyalarının ismi değişiyor tekrar dönüştürmemek için
+    # Renaming the converted PDF files to avoid re-conversion
     processed_pdf_path = pdf_path.replace('.pdf', '_processed.pdf')
     try:
         os.rename(pdf_path, processed_pdf_path)
@@ -55,7 +55,7 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI ve kalite para
 
     return True
 
-def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DPI ve kalite parametreleri eklendi
+def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DPI and quality parameters added
     if not os.path.isdir(input_dir):
         logging.error(f"Invalid input directory: {input_dir}")
         print("Invalid input directory. Please provide a valid path.")
@@ -72,13 +72,13 @@ def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DP
     successful_conversions = 0
     failed_conversions = 0
 
-    # thread kullanarak zamandan ve performanstan kazanıyoruz 
-    # thread sayesinde hata oluşan PDF dosyası diğer dosyaların dönüşümüne engel olmaz. Her pdfe ayrı bir thread atayarak paralel dönüşüm sağlarız
+    # Using threads to save time and performance
+    # Thanks to threads, a failed PDF file conversion won't hinder the conversion of other files. We achieve parallel conversion by assigning a separate thread to each PDF.
     with ThreadPoolExecutor() as executor:
         futures = {executor.submit(pdf_to_jpg, os.path.join(input_dir, filename), output_dir, dpi, quality): filename for filename in pdf_files}
         for future in futures:
             try:
-                result = future.result()  # her treadin sonucunu temsil eder bu sonuçlara ileride ulaşmayı sağlar
+                result = future.result()  # Represents the result of each thread, allowing access to these results later
                 if result:
                     successful_conversions += 1
                 else:
@@ -119,7 +119,7 @@ def update_ini_file(ini_file_path, input_directory, output_directory, dpi, quali
     logging.info(f"Updated INI file at {ini_file_path} with input and output directories, dpi, and quality.")
 
 if __name__ == "__main__":
-    ini_file_path = "settings.ini"  # INI dosyasının yolunu belirt
+    ini_file_path = "settings.ini"  # Specify the path to the INI file
     logging.info(f"Checking for INI file at: {ini_file_path}")
     
     if not os.path.exists(ini_file_path):
@@ -134,16 +134,16 @@ if __name__ == "__main__":
     input_directory = config.get('Settings', 'input_directory', fallback=None)
     output_directory = config.get('Settings', 'output_directory', fallback=None)
     
-    # DPI ve kalite değerlerini alırken hata oluşursa varsayılan değerleri kullanın
+    # Use default values if there's an error retrieving DPI and quality values
     try:
         dpi = config.getint('Settings', 'dpi', fallback=300)
     except ValueError:
-        dpi = 300  # Varsayılan DPI değeri
+        dpi = 300  # Default DPI value
     
     try:
         quality = config.getint('Settings', 'quality', fallback=95)
     except ValueError:
-        quality = 95  # Varsayılan kalite değeri
+        quality = 95  # Default quality value
     
     if not input_directory or not output_directory:
         logging.error("Key values are empty. Please fill them in the INI file.")
