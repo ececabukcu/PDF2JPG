@@ -7,7 +7,6 @@ import logging  # For logging operations
 from concurrent.futures import ThreadPoolExecutor  # To enable parallel processing
 import configparser  # For reading and writing INI files
 
-
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[
     logging.FileHandler("pdf_to_jpg.log"),
@@ -23,9 +22,12 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality pa
         logging.error(f"Failed to open PDF file: {pdf_path}, Error: {e}")
         return False
     
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        logging.info(f"Output directory created: {output_dir}")
+    pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
+    pdf_output_dir = os.path.join(output_dir, pdf_name)
+
+    if not os.path.exists(pdf_output_dir):
+        os.makedirs(pdf_output_dir)
+        logging.info(f"Output directory created: {pdf_output_dir}")
 
     # pdf to jpg
     for page_number in range(len(pdf_document)):
@@ -34,7 +36,7 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality pa
             pix = page.get_pixmap(dpi=dpi)  # Creating pixmap using the DPI parameter
             img_data = io.BytesIO(pix.tobytes(output='jpeg'))
             image = Image.open(img_data)
-            jpeg_path = os.path.join(output_dir, f'{os.path.splitext(os.path.basename(pdf_path))[0]}_page_{page_number + 1}.jpg')
+            jpeg_path = os.path.join(pdf_output_dir, f'{pdf_name}_page_{page_number + 1}.jpg')
             image.save(jpeg_path, 'JPEG', quality=quality)  # Quality parameter added
             logging.info(f'Page {page_number + 1} of {pdf_path} saved as {jpeg_path}')
         except Exception as e:
