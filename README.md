@@ -4,7 +4,7 @@ PDF2JPG is a Python tool designed to convert PDF files into JPG images. It suppo
 
 ## Description
 
-PDF2JPG allows users to easily convert PDF documents into JPG images, making it suitable for various use cases such as archiving, sharing, and viewing on devices that do not support PDF format.
+This project is a Python program that converts PDF files in a specified directory to JPEG format. The program first checks for an INI configuration file to retrieve settings for the input directory, output directory, DPI (dots per inch), and quality. If the INI file does not exist, an example INI file is created. The program converts the PDF files to JPEG format at the specified DPI and quality settings, and saves the converted files to the specified output directory. Upon completion, the program renames the original PDF files to _processed.pdf, so that the same file is not processed again. This ensures that the file is not seen again.
 
 ## Features
 
