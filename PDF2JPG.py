@@ -68,7 +68,12 @@ def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DP
         print("Invalid output directory. Please provide a valid path.")
         return
 
-    pdf_files = [f for f in os.listdir(input_dir) if f.endswith(".pdf") and not f.endswith("_processed.pdf")]
+    pdf_files = []
+    for root, _, files in os.walk(input_dir):
+        for file in files:
+            if file.endswith(".pdf") and not file.endswith("_processed.pdf"):
+                pdf_files.append(os.path.join(root, file))
+    
     total_files = len(pdf_files)
     logging.info(f"Found {total_files} PDF files to convert.")
     successful_conversions = 0
@@ -77,7 +82,7 @@ def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DP
     # Using threads to save time and performance
     # Thanks to threads, a failed PDF file conversion won't hinder the conversion of other files. We achieve parallel conversion by assigning a separate thread to each PDF.
     with ThreadPoolExecutor() as executor:
-        futures = {executor.submit(pdf_to_jpg, os.path.join(input_dir, filename), output_dir, dpi, quality): filename for filename in pdf_files}
+        futures = {executor.submit(pdf_to_jpg, pdf_path, output_dir, dpi, quality): pdf_path for pdf_path in pdf_files}
         for future in futures:
             try:
                 result = future.result()  # Represents the result of each thread, allowing access to these results later
