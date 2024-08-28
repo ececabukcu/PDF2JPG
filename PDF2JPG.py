@@ -1,5 +1,5 @@
-import sys  # For system-specific parameters and functions
-import fitz  # PyMuPDF # to work with PDF files
+import sys
+import fitz  # PyMuPDF to work with PDF files
 from PIL import Image  # For image processing with the Pillow library
 import io  # For input and output operations
 import os  # For interacting with the operating system (file and directory management)
@@ -13,25 +13,30 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
     logging.StreamHandler()
 ])
 
-def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality parameters added
+# Function to convert PDF to JPG
+def pdf_to_jpg(pdf_path, output_dir, relative_dir, dpi=300, quality=95):  # DPI and quality parameters added
     logging.info(f"Starting conversion for: {pdf_path}")
     try:
+        # Open the PDF document
         pdf_document = fitz.open(pdf_path)
         logging.info(f"PDF file opened successfully: {pdf_path}")
     except Exception as e:
         logging.error(f"Failed to open PDF file: {pdf_path}, Error: {e}")
         return False
     
+    #Stores the JPEG image in the same directory structure as relative_dir in output_directory
     pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    pdf_output_dir = os.path.join(output_dir, pdf_name)
+    pdf_output_dir = os.path.join(output_dir, relative_dir, pdf_name) #relative_dir is combined with output_directory to create the folder structure where JPEG files will be saved
 
+    # Create the output directory if it does not exist
     if not os.path.exists(pdf_output_dir):
         os.makedirs(pdf_output_dir)
         logging.info(f"Output directory created: {pdf_output_dir}")
 
-    # pdf to jpg
+    # Iterate over each page in the PDF
     for page_number in range(len(pdf_document)):
         try:
+            # Load the page and create a pixmap
             page = pdf_document.load_page(page_number)
             pix = page.get_pixmap(dpi=dpi)  # Creating pixmap using the DPI parameter
             img_data = io.BytesIO(pix.tobytes(output='jpeg'))
@@ -46,7 +51,7 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality pa
     
     pdf_document.close()
     
-    # Renaming the converted PDF files to avoid re-conversion
+    # Rename the original PDF file to avoid reprocessing
     processed_pdf_path = pdf_path.replace('.pdf', '_processed.pdf')
     try:
         os.rename(pdf_path, processed_pdf_path)
@@ -57,35 +62,39 @@ def pdf_to_jpg(pdf_path, output_dir, dpi=300, quality=95):  # DPI and quality pa
 
     return True
 
-def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DPI and quality parameters added
+# Function to process all PDFs in a directory
+def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):
+    # Check if input directory is valid
     if not os.path.isdir(input_dir):
         logging.error(f"Invalid input directory: {input_dir}")
         print("Invalid input directory. Please provide a valid path.")
         return
 
+    # Check if output directory is valid
     if not os.path.isdir(output_dir):
         logging.error(f"Invalid output directory: {output_dir}")
         print("Invalid output directory. Please provide a valid path.")
         return
 
     pdf_files = []
+    # os.walk through the input directory and find all PDF files
     for root, _, files in os.walk(input_dir):
         for file in files:
             if file.endswith(".pdf") and not file.endswith("_processed.pdf"):
-                pdf_files.append(os.path.join(root, file))
+                relative_dir = os.path.relpath(root, input_dir) #Calculates the difference between the file path and the input_directory
+                pdf_files.append((os.path.join(root, file), relative_dir))
     
     total_files = len(pdf_files)
     logging.info(f"Found {total_files} PDF files to convert.")
     successful_conversions = 0
     failed_conversions = 0
 
-    # Using threads to save time and performance
-    # Thanks to threads, a failed PDF file conversion won't hinder the conversion of other files. We achieve parallel conversion by assigning a separate thread to each PDF.
+    # Using ThreadPoolExecutor to process multiple PDFs concurrently
     with ThreadPoolExecutor() as executor:
-        futures = {executor.submit(pdf_to_jpg, pdf_path, output_dir, dpi, quality): pdf_path for pdf_path in pdf_files}
+        futures = {executor.submit(pdf_to_jpg, pdf_path, output_dir, relative_dir, dpi, quality): pdf_path for pdf_path, relative_dir in pdf_files}
         for future in futures:
             try:
-                result = future.result()  # Represents the result of each thread, allowing access to these results later
+                result = future.result()  # Get the result of the conversion
                 if result:
                     successful_conversions += 1
                 else:
@@ -98,33 +107,7 @@ def process_pdfs_in_directory(input_dir, output_dir, dpi=300, quality=95):  # DP
     logging.info(f"Conversion process completed. Successful: {successful_conversions}, Failed: {failed_conversions}")
     print(f"Conversion process completed. Successful: {successful_conversions}, Failed: {failed_conversions}")
 
-def create_example_ini_file(ini_file_path):
-    example_ini_content = """[Settings]
-input_directory = 
-output_directory = 
-dpi = 300
-quality = 95
-"""
-    with open(ini_file_path, "w") as example_file:
-        example_file.write(example_ini_content)
-    logging.info(f"Created example INI file at {ini_file_path}")
-
-def update_ini_file(ini_file_path, input_directory, output_directory, dpi, quality):
-    config = configparser.ConfigParser()
-    config.read(ini_file_path)
-    
-    if 'Settings' not in config:
-        config.add_section('Settings')
-    
-    config.set('Settings', 'input_directory', input_directory)
-    config.set('Settings', 'output_directory', output_directory)
-    config.set('Settings', 'dpi', str(dpi))
-    config.set('Settings', 'quality', str(quality))
-    
-    with open(ini_file_path, 'w') as configfile:
-        config.write(configfile)
-    logging.info(f"Updated INI file at {ini_file_path} with input and output directories, dpi, and quality.")
-
+# Main function
 if __name__ == "__main__":
     ini_file_path = "settings.ini"  # Specify the path to the INI file
     logging.info(f"Checking for INI file at: {ini_file_path}")
@@ -162,6 +145,7 @@ if __name__ == "__main__":
     logging.info(f"DPI: {dpi}")
     logging.info(f"Quality: {quality}")
     
+    # Validate directories
     if not os.path.isdir(input_directory):
         logging.error(f"Invalid input directory: {input_directory}")
         print("Invalid input directory. Please provide a valid path.")
