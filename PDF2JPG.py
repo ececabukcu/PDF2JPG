@@ -9,8 +9,9 @@ import configparser  # For reading and writing INI files
 from logging.handlers import TimedRotatingFileHandler  # rotate logs every month
 from datetime import datetime
 import shutil
-import zipfile #for handling ZIP files
-from html2image import Html2Image
+import zipfile  # for handling ZIP files
+from html2image import Html2Image  # for converting HTML to image
+import uuid  # For generating unique temp directory names
 
 # Function to rename the log file if the month has changed
 def rename_log_file():
@@ -22,19 +23,19 @@ def rename_log_file():
         os.makedirs(log_directory)
 
     if os.path.exists(log_file):
-        #Get the last modified date of the log file
+        # Get the last modified date of the log file
         file_creation_time = datetime.fromtimestamp(os.path.getmtime(log_file))
         if file_creation_time.month != current_time.month or file_creation_time.year != current_time.year:
-            #Rename log file if current month is different
+            # Rename log file if current month is different
             new_log_name = os.path.join(log_directory, f'conversion_{file_creation_time.strftime("%Y-%m")}.log')
             shutil.move(log_file, new_log_name)
     
-    #If the log file does not exist, a new one will be created
+    # If the log file does not exist, a new one will be created
     return log_file
 
 # Setup logging
 def setup_logging():
-    #Rename log file if month changed
+    # Rename log file if month changed
     log_file = rename_log_file()
 
     # Logging configuration using TimedRotatingFileHandler
@@ -59,12 +60,12 @@ def create_output_directory(output_dir, relative_dir, base_name):
 def resize_image(image, max_width, max_height):
     original_width, original_height = image.size
     aspect_ratio = original_width / original_height
-    # If width is big
+    # Resize if width is too large
     if original_width > max_width:
         new_width = max_width
         new_height = int(new_width / aspect_ratio)
         image = image.resize((new_width, new_height), Image.LANCZOS)
-    # If height is big
+    # Resize if height is too large
     if original_height > max_height:
         new_height = max_height
         new_width = int(aspect_ratio * new_height)
@@ -79,7 +80,7 @@ def png_to_jpg(png_path, output_dir, relative_dir, quality=95, max_width=1920, m
         base_name = os.path.splitext(os.path.basename(png_path))[0]
         png_output_dir = create_output_directory(output_dir, relative_dir, base_name)
         jpeg_path = os.path.join(png_output_dir, f'{base_name}.jpg')
-         # Apply size
+        # Apply size
         image = resize_image(image, max_width, max_height)
         image = image.convert("RGB")  
         image.save(jpeg_path, 'JPEG', quality=quality)
@@ -88,6 +89,7 @@ def png_to_jpg(png_path, output_dir, relative_dir, quality=95, max_width=1920, m
     except Exception as e:
         logging.error(f"Failed to convert PNG file: {png_path}, Error: {e}")
 
+'''# Function to convert HTML to JPG
 def html_to_jpg(html_path, output_dir, relative_dir, dpi=300, quality=95, max_width=1920, max_height=1080):
     logging.info(f"Starting HTML conversion for: {html_path}")
     try:
@@ -118,28 +120,32 @@ def html_to_jpg(html_path, output_dir, relative_dir, dpi=300, quality=95, max_wi
         return True
     except Exception as e:
         logging.error(f"Failed to convert HTML file: {html_path}, Error: {e}")
-        return False
+        return False'''
 
-# Updated rename_processed_file function to rename HTML correctly
+# Updated rename_processed_file function to rename files correctly
 def rename_processed_file(file_path):
-    file_dir, file_name = os.path.split(file_path)
-    base_name, extension = os.path.splitext(file_name)
-    
-    # Define the new file name based on the file type
-    if extension.lower() in ['.pdf', '.png', '.html', '.zip']:
-        processed_file_name = f"{base_name}_processed{extension}"
+    if os.path.exists(file_path):  # Check if the file or directory exists
+        file_dir, file_name = os.path.split(file_path)
+        base_name, extension = os.path.splitext(file_name)
+        
+        # Define the new file name based on the file type
+        if extension.lower() in ['.pdf', '.png', '.html', '.zip']:
+            processed_file_name = f"{base_name}_processed{extension}"
+        else:
+            # If the file type is not recognized, don't rename
+            logging.warning(f"Unrecognized file type for renaming: {file_path}")
+            return
+        
+        processed_file_path = os.path.join(file_dir, processed_file_name)
+
+        try:
+            os.rename(file_path, processed_file_path)
+            logging.info(f"Renamed file to: {processed_file_path}")
+        except Exception as e:
+            logging.warning(f"There is no such file anyway. The file has not been renamed: {file_path}")
+
     else:
-        # If the file type is not recognized, don't rename
-        logging.warning(f"Unrecognized file type for renaming: {file_path}")
-        return
-    
-    processed_file_path = os.path.join(file_dir, processed_file_name)
-    
-    try:
-        os.rename(file_path, processed_file_path)
-        logging.info(f"Renamed file to: {processed_file_path}")
-    except Exception as e:
-        logging.error(f"Failed to rename file: {file_path}, Error: {e}")
+        logging.error(f"File not found for renaming: {file_path}")        
 
 # Function to convert PDF to JPG
 def pdf_to_jpg(pdf_path, output_dir, relative_dir, dpi=300, quality=95, max_width=1920, max_height=1080):
@@ -164,7 +170,7 @@ def pdf_to_jpg(pdf_path, output_dir, relative_dir, dpi=300, quality=95, max_widt
             pix = page.get_pixmap(dpi=dpi)
             img_data = io.BytesIO(pix.tobytes(output='jpeg'))
             image = Image.open(img_data)
-            # Boyutlandırmayı uygula
+            # Apply resizing
             image = resize_image(image, max_width, max_height)
             jpeg_path = os.path.join(pdf_output_dir, f'{base_name}_page_{page_number + 1}.jpg')
             image.save(jpeg_path, 'JPEG', quality=quality)
@@ -173,26 +179,52 @@ def pdf_to_jpg(pdf_path, output_dir, relative_dir, dpi=300, quality=95, max_widt
             logging.error(f"Failed to convert page {page_number + 1} of {pdf_path}, Error: {e}")
             return False
         
+    rename_processed_file(pdf_path)   
     pdf_document.close()
-    rename_processed_file(pdf_path)
     return True
 
 # Function to process ZIP files and convert contents
 def process_zip_file(zip_path, output_dir, dpi=300, quality=95, max_width=1920, max_height=1080):
     logging.info(f"Processing ZIP file: {zip_path}")
+    temp_dir = None
     try:
+        unique_id = str(uuid.uuid4())  # Generate a unique ID for the temp directory
+        temp_dir = os.path.join(output_dir, f"temp_extract_{unique_id}")  # Ensure unique temp directory
+        os.makedirs(temp_dir)
+
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            base_name = os.path.splitext(os.path.basename(zip_path))[0]
-            zip_output_dir = create_output_directory(output_dir, "", base_name)
-            zip_ref.extractall(zip_output_dir)
-
-            # Process the extracted files, ignoring files in '__MACOSX' folder
-            process_files_in_directory(zip_output_dir, output_dir, dpi, quality, max_width, max_height)
-
-            # Rename the original ZIP to indicate it has been processed
+            zip_ref.extractall(temp_dir)
+            
+            # Process extracted files
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    if '__MACOSX' in root:  # Skip Mac OS system files
+                        continue
+                        
+                    file_path = os.path.join(root, file)
+                    base_name = os.path.splitext(os.path.basename(file))[0]
+                    # Process PDF files
+                    if file.lower().endswith('.pdf'):
+                        pdf_to_jpg(file_path, output_dir, "", dpi, quality, max_width, max_height)
+                    
+                    # Process PNG files
+                    elif file.lower().endswith('.png'):
+                        png_to_jpg(file_path, output_dir, "", quality, max_width, max_height)
+                    ''' # Process HTML files
+                                        elif file.lower().endswith('.html'):
+                                            html_to_jpg(file_path, output_dir, "", dpi, quality, max_width, max_height)    
+                    '''
+                   
             rename_processed_file(zip_path)
+            
     except Exception as e:
-        logging.error(f"Failed to process ZIP file: {zip_path}, Error: {e}")
+        logging.error(f"Failed to process ZIP file: {zip_path}, Error: {e}")    
+
+    finally:
+        # Clean up temporary directory after processing is complete and ZIP is closed
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+            logging.info(f"Temporary directory {temp_dir} removed.")
 
 # General function to process files in a directory
 def process_files_in_directory(input_dir, output_dir, dpi=300, quality=95, max_width=1920, max_height=1080):
@@ -202,6 +234,7 @@ def process_files_in_directory(input_dir, output_dir, dpi=300, quality=95, max_w
         return
 
     file_tasks = []
+
     for root, _, files in os.walk(input_dir):
         for file in files:
             file_path = os.path.join(root, file)
@@ -215,15 +248,16 @@ def process_files_in_directory(input_dir, output_dir, dpi=300, quality=95, max_w
             # PDF files
             if file.endswith(".pdf") and not file.endswith("_processed.pdf"):
                 file_tasks.append((pdf_to_jpg, file_path, output_dir, relative_dir, dpi, quality, max_width, max_height))
-            
+
             # PNG files
             elif file.endswith(".png") and not file.endswith("_processed.png"):
                 file_tasks.append((png_to_jpg, file_path, output_dir, relative_dir, quality, max_width, max_height))
-            
-            # HTML files
-            elif file.endswith(".html") and not file.endswith("_processed.html"):
-                file_tasks.append((html_to_jpg, file_path, output_dir, relative_dir, quality, max_width, max_height))  
-            
+
+                ''' # HTML files
+                elif file.endswith(".html") and not file.endswith("_processed.html"):
+                    file_tasks.append((html_to_jpg, file_path, output_dir, relative_dir, quality, max_width, max_height))
+                '''
+           
             # ZIP files (in case ZIPs are nested)
             elif file.endswith(".zip") and not file.endswith("_processed.zip"):
                 file_tasks.append((process_zip_file, file_path, output_dir, dpi, quality, max_width, max_height))
@@ -257,8 +291,8 @@ if __name__ == "__main__":
     ini_file_path = "settings.ini"
     logging.info(f"Checking for INI file at: {ini_file_path}")
 
-    # Kontrol: INI dosyası var mı?
-    if not os.path.isfile(ini_file_path):  # Dosyanın varlığı ve bir dosya olup olmadığını kontrol et
+    # Check if INI file exists
+    if not os.path.isfile(ini_file_path):
         logging.error(f"INI file does not exist at path: {ini_file_path}.")
         sys.exit(1)
 
@@ -311,3 +345,4 @@ if __name__ == "__main__":
 
     process_files_in_directory(input_directory, output_directory, dpi, quality, max_width, max_height)
     logging.info("Conversion process completed.")
+    
